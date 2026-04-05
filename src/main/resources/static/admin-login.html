@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Login — Serma Logistics</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="login-page">
+    <div class="login-bg-pattern"></div>
+
+    <div class="login-card">
+      <!-- Logo -->
+      <div class="login-logo">
+        <div class="login-logo-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z" stroke="#F97316" stroke-width="1.8" stroke-linejoin="round"/>
+            <circle cx="5.5" cy="18.5" r="2" stroke="#F97316" stroke-width="1.8"/>
+            <circle cx="18.5" cy="18.5" r="2" stroke="#F97316" stroke-width="1.8"/>
+          </svg>
+        </div>
+        <div class="login-brand-name">Serma <span>Logistics</span></div>
+        <div class="login-brand-sub">Puducherry's Trusted Transport</div>
+        <div class="login-divider"></div>
+        <div class="login-title">Admin Portal</div>
+        <div class="login-subtitle">Sign in to manage bookings</div>
+      </div>
+
+      <!-- Form -->
+      <form id="loginForm" novalidate>
+        <div class="form-group" style="margin-bottom:18px;">
+          <label for="username">Username <span class="req">*</span></label>
+          <input type="text" id="username" placeholder="Enter username" autocomplete="username" required />
+        </div>
+
+        <div class="form-group" style="margin-bottom:24px;">
+          <label for="password">Password <span class="req">*</span></label>
+          <div style="position:relative;">
+            <input type="password" id="password" placeholder="Enter password" autocomplete="current-password" required style="padding-right:48px;" />
+            <button type="button" onclick="togglePwd()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;padding:0;color:var(--slate);" title="Show/hide">👁</button>
+          </div>
+        </div>
+
+        <div id="loginAlert" style="display:none;margin-bottom:16px;"></div>
+
+        <button type="submit" class="btn btn-navy btn-full btn-lg" id="loginBtn">
+          <span id="btnText">Sign In to Dashboard</span>
+          <span id="btnSpinner" style="display:none;"><span class="spinner"></span> Signing in...</span>
+        </button>
+      </form>
+
+      <!-- Back -->
+      <div style="text-align:center;margin-top:20px;">
+        <a href="index.html" style="color:var(--slate);font-size:0.85rem;text-decoration:none;">← Back to Booking Page</a>
+      </div>
+
+      <!-- Owner contact -->
+      <div class="login-contact-strip">
+        <span>Need help?</span>
+        <a href="tel:+919976960625">+91 99769 60625</a>
+        <span>· P. Perumal</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:8080/api';
+    if (localStorage.getItem('jwtToken')) window.location.href = 'dashboard.html';
+
+    function togglePwd() {
+      const i = document.getElementById('password');
+      i.type = i.type === 'password' ? 'text' : 'password';
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const alertEl  = document.getElementById('loginAlert');
+      const btnText  = document.getElementById('btnText');
+      const spinner  = document.getElementById('btnSpinner');
+      const loginBtn = document.getElementById('loginBtn');
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+
+      if (!username || !password) {
+        showAlert(alertEl, 'error', '⚠️ Please enter both username and password.');
+        return;
+      }
+
+      loginBtn.disabled = true;
+      btnText.style.display  = 'none';
+      spinner.style.display  = 'flex';
+      alertEl.style.display  = 'none';
+
+      try {
+        const res  = await fetch(`${API_BASE}/auth/login`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username, password }) });
+        const data = await res.json();
+        if (res.ok && data.token) {
+          localStorage.setItem('jwtToken', data.token);
+          localStorage.setItem('adminName', data.fullName || data.username);
+          showAlert(alertEl, 'success', '✅ Login successful! Redirecting...');
+          setTimeout(() => window.location.href = 'dashboard.html', 800);
+        } else {
+          showAlert(alertEl, 'error', '❌ ' + (data.message || 'Invalid credentials.'));
+          loginBtn.disabled = false;
+          btnText.style.display  = 'flex';
+          spinner.style.display  = 'none';
+        }
+      } catch(err) {
+        showAlert(alertEl, 'error', '❌ Cannot connect to server.');
+        loginBtn.disabled = false;
+        btnText.style.display  = 'flex';
+        spinner.style.display  = 'none';
+      }
+    });
+
+    function showAlert(el, type, msg) {
+      el.style.display = 'flex';
+      el.className = `alert alert-${type}`;
+      el.innerHTML = msg;
+    }
+  </script>
+</body>
+</html>

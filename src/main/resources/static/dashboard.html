@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Serma Logistics</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ─── Dashboard Header ────────────────────────────────────── -->
+  <div class="dash-header">
+    <div class="container">
+      <div class="dash-header-left">
+        <a href="index.html" class="navbar-brand">
+          <div class="logo-icon" style="width:34px;height:34px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z" stroke="#F97316" stroke-width="1.8" stroke-linejoin="round"/>
+              <circle cx="5.5" cy="18.5" r="2" stroke="#F97316" stroke-width="1.8"/>
+              <circle cx="18.5" cy="18.5" r="2" stroke="#F97316" stroke-width="1.8"/>
+            </svg>
+          </div>
+          <div class="brand-wrap">
+            <div class="brand-name" style="font-size:1.05rem;">Serma <span>Logistics</span></div>
+            <div class="brand-tagline">Admin Dashboard</div>
+          </div>
+        </a>
+      </div>
+      <div class="dash-actions">
+        <div class="dash-admin-info" id="adminGreeting">Welcome!</div>
+        <button onclick="loadBookings()" class="btn btn-outline btn-sm">🔄 Refresh</button>
+        <button onclick="logout()" class="btn btn-sm" style="background:#EF4444;color:white;border:none;">🚪 Logout</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" style="padding-bottom:48px;">
+
+    <!-- ─── Stats ──────────────────────────────────────────────── -->
+    <div class="stats-grid">
+      <div class="stat-card orange">
+        <div class="stat-number" id="statTotal">—</div>
+        <div class="stat-label">Total Bookings</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-number" id="statNew">—</div>
+        <div class="stat-label">New</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-number" id="statConfirmed">—</div>
+        <div class="stat-label">In Progress</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-number" id="statDone">—</div>
+        <div class="stat-label">Completed</div>
+      </div>
+    </div>
+
+    <!-- ─── Filter Bar ─────────────────────────────────────────── -->
+    <div class="filter-bar">
+      <input type="text" id="searchInput" placeholder="🔍 Search by name or phone..." oninput="filterTable()" />
+      <button class="filter-btn active" onclick="filterByStatus('ALL',this)">All</button>
+      <button class="filter-btn" onclick="filterByStatus('NEW',this)">🆕 New</button>
+      <button class="filter-btn" onclick="filterByStatus('CONFIRMED',this)">✅ Confirmed</button>
+      <button class="filter-btn" onclick="filterByStatus('IN_TRANSIT',this)">🚚 In Transit</button>
+      <button class="filter-btn" onclick="filterByStatus('DONE',this)">✔️ Done</button>
+    </div>
+
+    <!-- ─── Table ──────────────────────────────────────────────── -->
+    <div class="table-wrap" id="tableWrap">
+      <div style="text-align:center;padding:48px;color:var(--slate);">
+        <div class="spinner" style="width:32px;height:32px;border-color:rgba(100,116,139,0.3);border-top-color:var(--brand);margin:0 auto 12px;"></div>
+        Loading bookings...
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ─── Footer ──────────────────────────────────────────────── -->
+  <footer class="footer" style="margin-top:0;">
+    <div class="container">
+      <div class="footer-bottom" style="border-top:none;padding-top:0;">
+        © 2026 Serma Logistics. All Rights Reserved. &nbsp;|&nbsp;
+        <a href="tel:+919976960625" style="color:var(--brand);">+91 99769 60625</a>
+      </div>
+    </div>
+  </footer>
+
+  <div id="toast" class="toast" style="display:none;"></div>
+
+  <script>
+    const API_BASE = 'http://localhost:8080/api';
+    let allBookings = [];
+    let activeFilter = 'ALL';
+
+    const token = localStorage.getItem('jwtToken');
+    if (!token) window.location.href = 'admin-login.html';
+
+    const adminName = localStorage.getItem('adminName') || 'Admin';
+    document.getElementById('adminGreeting').textContent = `👋 ${adminName}`;
+
+    async function loadBookings() {
+      const wrap = document.getElementById('tableWrap');
+      wrap.innerHTML = `<div style="text-align:center;padding:48px;color:var(--slate);"><div class="spinner" style="width:32px;height:32px;border-color:rgba(100,116,139,0.3);border-top-color:var(--brand);margin:0 auto 12px;"></div>Loading...</div>`;
+      try {
+        const [bRes, sRes] = await Promise.all([
+          fetch(`${API_BASE}/bookings`,       { headers: authHeaders() }),
+          fetch(`${API_BASE}/bookings/stats`, { headers: authHeaders() })
+        ]);
+        if (bRes.status === 401 || bRes.status === 403) { logout(); return; }
+        const bData = await bRes.json();
+        const sData = await sRes.json();
+        allBookings = bData.data || [];
+        if (sData.data) {
+          const s = sData.data;
+          document.getElementById('statTotal').textContent     = s.total || 0;
+          document.getElementById('statNew').textContent       = s.new   || 0;
+          document.getElementById('statConfirmed').textContent = (s.confirmed||0)+(s.inTransit||0);
+          document.getElementById('statDone').textContent      = s.done  || 0;
+        }
+        renderTable(allBookings);
+      } catch(err) {
+        wrap.innerHTML = `<div class="empty-state"><div class="icon">❌</div><h3>Connection Error</h3><p>Cannot reach the server. Is backend running?</p><button onclick="loadBookings()" class="btn btn-primary mt-md">Retry</button></div>`;
+      }
+    }
+
+    function renderTable(bookings) {
+      const wrap = document.getElementById('tableWrap');
+      if (!bookings || !bookings.length) {
+        wrap.innerHTML = `<div class="empty-state"><div class="icon">📋</div><h3>No Bookings Found</h3><p>No bookings match the current filter.</p></div>`;
+        return;
+      }
+      const rows = bookings.map(b => `
+        <tr id="row-${b.id}">
+          <td class="td-name">#${b.id}<br><span style="font-size:0.78rem;color:var(--slate);">${formatDate(b.createdAt)}</span></td>
+          <td class="td-name">${esc(b.customerName)}</td>
+          <td class="td-phone"><a href="tel:${esc(b.phone)}" title="Call customer">📞 ${esc(b.phone)}</a></td>
+          <td class="td-route">
+            <strong style="color:var(--navy);font-size:0.85rem;">${esc(b.pickupLocation)}</strong>
+            <span class="route-arrow">→</span>
+            <strong style="color:var(--navy);font-size:0.85rem;">${esc(b.dropLocation)}</strong>
+            ${b.weight ? `<br><span style="font-size:0.78rem;color:var(--muted);">${b.weight} kg · ${b.goodsType||'N/A'}</span>` : ''}
+            ${b.notes  ? `<br><span style="font-size:0.78rem;color:var(--muted);font-style:italic;">💬 ${esc(b.notes.substring(0,60))}${b.notes.length>60?'...':''}</span>` : ''}
+          </td>
+          <td>${statusBadge(b.status)}</td>
+          <td>
+            <div class="action-btns">
+              ${b.status==='NEW'       ? `<button class="btn btn-sm btn-confirm" onclick="updateStatus(${b.id},'CONFIRMED')">✅ Confirm</button>` : ''}
+              ${b.status==='CONFIRMED' ? `<button class="btn btn-sm btn-transit" onclick="updateStatus(${b.id},'IN_TRANSIT')">🚚 Transit</button>` : ''}
+              ${b.status==='IN_TRANSIT'? `<button class="btn btn-sm btn-done"    onclick="updateStatus(${b.id},'DONE')">✔️ Done</button>` : ''}
+              ${b.status==='DONE'      ? `<span style="color:var(--status-done);font-size:0.82rem;font-weight:600;">✔ Completed</span>` : ''}
+              <button class="btn btn-sm btn-delete" onclick="deleteBooking(${b.id})" title="Delete">🗑️</button>
+            </div>
+          </td>
+        </tr>`).join('');
+      wrap.innerHTML = `
+        <table>
+          <thead><tr>
+            <th>ID / Date</th><th>Customer</th><th>Phone</th>
+            <th>Route &amp; Details</th><th>Status</th><th>Actions</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    async function updateStatus(id, newStatus) {
+      try {
+        const res  = await fetch(`${API_BASE}/bookings/${id}/status`, { method:'PUT', headers:{...authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({status:newStatus}) });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          const idx = allBookings.findIndex(b => b.id===id);
+          if (idx !== -1) allBookings[idx].status = newStatus;
+          renderTable(getFiltered());
+          showToast(`✅ Status updated to: ${newStatus}`, 'success');
+        } else { showToast('❌ Failed to update status','error'); }
+      } catch(e) { showToast('❌ Connection error','error'); }
+    }
+
+    async function deleteBooking(id) {
+      if (!confirm(`Delete booking #${id}? This cannot be undone.`)) return;
+      try {
+        const res  = await fetch(`${API_BASE}/bookings/${id}`, { method:'DELETE', headers: authHeaders() });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          allBookings = allBookings.filter(b => b.id!==id);
+          renderTable(getFiltered());
+          showToast('🗑️ Booking deleted.','success');
+          loadBookings();
+        } else { showToast('❌ Delete failed','error'); }
+      } catch(e) { showToast('❌ Connection error','error'); }
+    }
+
+    function filterByStatus(status, btn) {
+      activeFilter = status;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderTable(getFiltered());
+    }
+    function filterTable() { renderTable(getFiltered()); }
+    function getFiltered() {
+      const s = document.getElementById('searchInput').value.toLowerCase();
+      return allBookings.filter(b => {
+        const ms = activeFilter==='ALL' || b.status===activeFilter;
+        const mq = !s || b.customerName.toLowerCase().includes(s) || b.phone.includes(s);
+        return ms && mq;
+      });
+    }
+
+    function authHeaders() { return { 'Authorization': `Bearer ${localStorage.getItem('jwtToken')}` }; }
+    function logout() { localStorage.removeItem('jwtToken'); localStorage.removeItem('adminName'); window.location.href = 'admin-login.html'; }
+
+    function statusBadge(s) {
+      const m = { NEW:'<span class="badge badge-new">🆕 New</span>', CONFIRMED:'<span class="badge badge-confirmed">✅ Confirmed</span>', IN_TRANSIT:'<span class="badge badge-transit">🚚 In Transit</span>', DONE:'<span class="badge badge-done">✔️ Done</span>' };
+      return m[s] || `<span class="badge">${s}</span>`;
+    }
+    function formatDate(dt) { if(!dt) return ''; return new Date(dt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+    function esc(str) { if(!str) return ''; return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    let toastTimer;
+    function showToast(msg, type='success') {
+      const t = document.getElementById('toast');
+      t.textContent = msg; t.className = `toast ${type}`; t.style.display = 'flex';
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3500);
+    }
+
+    loadBookings();
+    setInterval(loadBookings, 60000);
+  </script>
+</body>
+</html>
